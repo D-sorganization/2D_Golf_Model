@@ -33,6 +33,7 @@ function golf_swing_gui_optimized()
     setup_tab = uitab('Parent', tab_group, 'Title', '⚙️ Setup & Run');
     results_tab = uitab('Parent', tab_group, 'Title', '📊 Results');
     performance_tab = uitab('Parent', tab_group, 'Title', '📈 Performance');
+    skeleton_tab = uitab('Parent', tab_group, 'Title', '🦴 3D Skeleton');
 
     %% Setup Tab - Left Panel (Controls)
     control_panel = uipanel('Parent', setup_tab, ...
@@ -183,6 +184,22 @@ function golf_swing_gui_optimized()
                          'Position', [0.1, 0.4, 0.8, 0.2], ...
                          'FontSize', 16, 'HorizontalAlignment', 'center');
 
+    %% Skeleton Tab
+    skeleton_panel = uipanel('Parent', skeleton_tab, ...
+                            'Position', [0.01, 0.01, 0.98, 0.98], ...
+                            'BorderType', 'none');
+
+    skeleton_placeholder = uicontrol('Parent', skeleton_panel, 'Style', 'text', ...
+                                    'String', {'Run analysis to view 3D skeleton visualization', '', ...
+                                              'The skeleton plotter provides:', ...
+                                              '• Interactive 3D golf swing playback', ...
+                                              '• Force and torque vector visualization', ...
+                                              '• Multiple camera views', ...
+                                              '• Animation recording capabilities'}, ...
+                                    'Units', 'normalized', ...
+                                    'Position', [0.1, 0.3, 0.8, 0.4], ...
+                                    'FontSize', 14, 'HorizontalAlignment', 'center');
+
     %% Store handles in figure
     handles = struct();
     handles.parallel_checkbox = parallel_checkbox;
@@ -193,6 +210,9 @@ function golf_swing_gui_optimized()
     handles.status_listbox = status_listbox;
     handles.results_text = results_text;
     handles.perf_text = perf_text;
+    handles.skeleton_tab = skeleton_tab;
+    handles.skeleton_panel = skeleton_panel;
+    handles.skeleton_placeholder = skeleton_placeholder;
     handles.sim_config = sim_config;
     handles.plot_cfg = plot_cfg;
 
@@ -244,6 +264,37 @@ function golf_swing_gui_optimized()
                 h.sim_config.output_path);
             set(h.results_text, 'String', results_str, ...
                 'HorizontalAlignment', 'left');
+
+            % Launch SkeletonPlotter in Skeleton tab
+            try
+                add_status(h.status_listbox, 'Loading 3D skeleton visualization...');
+
+                % Load Q-tables for visualization
+                output_path = h.sim_config.output_path;
+                baseq_file = fullfile(output_path, 'BASEQ.mat');
+                ztcfq_file = fullfile(output_path, 'ZTCFQ.mat');
+                deltaq_file = fullfile(output_path, 'DELTAQ.mat');
+
+                if exist(baseq_file, 'file') && exist(ztcfq_file, 'file') && exist(deltaq_file, 'file')
+                    % Load the Q-tables
+                    load(baseq_file, 'BASEQ');
+                    load(ztcfq_file, 'ZTCFQ');
+                    load(deltaq_file, 'DELTAQ');
+
+                    % Delete placeholder text
+                    delete(h.skeleton_placeholder);
+
+                    % Launch SkeletonPlotter in embedded mode
+                    addpath(fullfile(fileparts(fileparts(mfilename('fullpath'))), '..', 'visualization'));
+                    SkeletonPlotter(BASEQ, ZTCFQ, DELTAQ, h.skeleton_panel);
+
+                    add_status(h.status_listbox, '✅ 3D skeleton visualization loaded');
+                else
+                    add_status(h.status_listbox, '⚠️ Q-tables not found, skeleton visualization unavailable');
+                end
+            catch ME
+                add_status(h.status_listbox, sprintf('⚠️ Skeleton plotter error: %s', ME.message));
+            end
 
         catch ME
             % Error
