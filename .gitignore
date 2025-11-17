@@ -16,7 +16,7 @@ slprj/
 *sldd
 *.slxc
 *.autosave
-*.mex* 
+*.mex*
 
 # IDE
 *.cursor-chat
@@ -34,7 +34,5 @@ logs/
 *.log
 
 # Binary models/data via LFS
-*.mdl
 *.h5
 *.zip
-
