@@ -117,7 +117,7 @@ write_idx = 1;
 for i = config.ztcf_start_time:config.ztcf_end_time
     ztcf_row = run_single_ztcf_point(config, mdlWks, j, i);
     if ~isempty(ztcf_row)
-        ZTCFTable(write_idx, :) = ztcf_row;  // ✅ DIRECT ASSIGNMENT
+        ZTCFTable(write_idx, :) = ztcf_row;  % ✅ DIRECT ASSIGNMENT
         write_idx = write_idx + 1;
     end
 end
@@ -210,7 +210,7 @@ table_in.(linear_power_var) = [0; diff(table_in.(linear_work_var)) ./ diff(table
 #### Optimized Code (EFFICIENT)
 ```matlab
 % Before the loop
-dt = diff(table_in.Time);  // Compute once
+dt = diff(table_in.Time);  % Compute once
 
 % Inside loop over 6 joints
 table_in.(angular_power_var) = [0; diff(table_in.(angular_work_var)) ./ dt];

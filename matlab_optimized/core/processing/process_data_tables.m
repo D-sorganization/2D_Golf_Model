@@ -17,7 +17,7 @@ function [BASE, ZTCF, DELTA, BASEQ, ZTCFQ, DELTAQ] = process_data_tables(config,
 %   4. Generation of Q-tables for plotting
 %
 % The synchronization is necessary because ZTCF data is sparse (29 points)
-% while BASE data is dense (~2800 points).
+% while BASE data is dense (thousands of points at 0.0001s intervals).
 %
 % Author: Optimized Golf Swing Analysis System
 % Date: 2025

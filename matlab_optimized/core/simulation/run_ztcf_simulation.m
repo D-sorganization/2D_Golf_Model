@@ -78,6 +78,16 @@ function ZTCF = run_ztcf_serial(config, mdlWks, BaseData)
     % Calculate number of time points
     num_points = config.ztcf_end_time - config.ztcf_start_time + 1;
 
+    % Check for empty BaseData
+    if isempty(BaseData) || height(BaseData) == 0
+        warning('BaseData is empty. Cannot preallocate ZTCF table.');
+        ZTCF = BaseData;  % Return empty table with correct structure
+        if config.verbose
+            fprintf('   Serial execution skipped: BaseData is empty\n');
+        end
+        return;
+    end
+
     % Preallocate table with correct structure
     % Create template row and replicate it
     ZTCFTable = repmat(BaseData(1,:), num_points, 1);
