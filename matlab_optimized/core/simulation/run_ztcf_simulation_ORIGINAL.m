@@ -1,8 +1,6 @@
 function ZTCF = run_ztcf_simulation(config, mdlWks, BaseData)
 % RUN_ZTCF_SIMULATION - Generate ZTCF data with optional parallelization
 %
-% OPTIMIZED VERSION with proper preallocation for serial mode
-%
 % Inputs:
 %   config - Configuration structure from simulation_config()
 %   mdlWks - Model workspace handle from initialize_model()
@@ -17,16 +15,11 @@ function ZTCF = run_ztcf_simulation(config, mdlWks, BaseData)
 % torque contributions.
 %
 % The function supports both serial and parallel execution modes:
-%   - Serial: Runs simulations sequentially with PREALLOCATED table
+%   - Serial: Runs simulations sequentially (original behavior)
 %   - Parallel: Runs simulations on multiple workers for 7-10x speedup
-%
-% OPTIMIZATION NOTES:
-%   - Serial mode now preallocates result table (2-5x faster)
-%   - Parallel mode already optimal with cell array preallocation
 %
 % Author: Optimized Golf Swing Analysis System
 % Date: 2025
-% Optimization Level: MAXIMUM
 
     if config.verbose
         fprintf('🔄 Generating ZTCF (Zero Torque Counterfactual) data...\n');
@@ -58,42 +51,15 @@ function ZTCF = run_ztcf_simulation(config, mdlWks, BaseData)
 end
 
 function ZTCF = run_ztcf_serial(config, mdlWks, BaseData)
-    % Serial execution - OPTIMIZED with preallocation
-    %
-    % OPTIMIZATION: Preallocate table before loop instead of growing it
-    % Original: ZTCFTable = [ZTCFTable; ztcf_row] in loop (SLOW!)
-    % Optimized: Preallocate full table, fill by index (2-5x faster)
+    % Serial execution - original MASTER_SCRIPT method
 
     if config.verbose
-        fprintf('   Using SERIAL execution mode (OPTIMIZED)\n');
+        fprintf('   Using SERIAL execution mode\n');
     end
 
-    %% ========================================================================
-    %  OPTIMIZATION: PREALLOCATE RESULT TABLE
-    %  Original: Growing array in loop - very slow
-    %  Optimized: Preallocate full size, fill by index
-    %  Speedup: 2-5x faster
-    %% ========================================================================
-
-    % Calculate number of time points
-    num_points = config.ztcf_end_time - config.ztcf_start_time + 1;
-
-    % Check for empty BaseData
-    if isempty(BaseData) || height(BaseData) == 0
-        warning('BaseData is empty. Cannot preallocate ZTCF table.');
-        ZTCF = BaseData;  % Return empty table with correct structure
-        if config.verbose
-            fprintf('   Serial execution skipped: BaseData is empty\n');
-        end
-        return;
-    end
-
-    % Preallocate table with correct structure
-    % Create template row and replicate it
-    ZTCFTable = repmat(BaseData(1,:), num_points, 1);
-
-    % Initialize write index
-    write_idx = 1;
+    % Initialize ZTCF table
+    ZTCFTable = BaseData;
+    ZTCFTable(:,:) = [];
 
     current_dir = pwd;
     try
@@ -113,10 +79,8 @@ function ZTCF = run_ztcf_serial(config, mdlWks, BaseData)
             % Run simulation for this time point
             ztcf_row = run_single_ztcf_point(config, mdlWks, j, i);
 
-            % Store result if valid
             if ~isempty(ztcf_row)
-                ZTCFTable(write_idx, :) = ztcf_row;
-                write_idx = write_idx + 1;
+                ZTCFTable = [ZTCFTable; ztcf_row];
             end
         end
 
@@ -126,21 +90,12 @@ function ZTCF = run_ztcf_serial(config, mdlWks, BaseData)
     end
 
     cd(current_dir);
-
-    % Trim unused rows (in case some simulations failed)
-    ZTCFTable = ZTCFTable(1:write_idx-1, :);
-
     ZTCF = ZTCFTable;
-
-    if config.verbose
-        fprintf('   Serial execution complete: %d valid points\n', height(ZTCF));
-    end
 
 end
 
 function ZTCF = run_ztcf_parallel(config, mdlWks, BaseData)
-    % Parallel execution - already optimized
-    % (Cell array preallocation already implemented)
+    % Parallel execution - optimized for multi-core systems
 
     if config.verbose
         fprintf('   Using PARALLEL execution mode\n');
@@ -166,7 +121,7 @@ function ZTCF = run_ztcf_parallel(config, mdlWks, BaseData)
         end
     end
 
-    %% Pre-allocate results cell array (ALREADY OPTIMAL)
+    %% Pre-allocate results cell array
     num_points = config.ztcf_end_time - config.ztcf_start_time + 1;
     ztcf_rows = cell(num_points, 1);
 
@@ -216,10 +171,6 @@ function ZTCF = run_ztcf_parallel(config, mdlWks, BaseData)
     else
         ZTCF = BaseData;
         ZTCF(:,:) = [];
-    end
-
-    if config.verbose
-        fprintf('   Parallel execution complete: %d valid points\n', height(ZTCF));
     end
 
 end

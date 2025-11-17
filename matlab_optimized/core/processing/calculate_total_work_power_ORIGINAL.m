@@ -1,8 +1,6 @@
 function [BASE, BASEQ, ZTCF, ZTCFQ, DELTA, DELTAQ] = calculate_total_work_power(BASE, BASEQ, ZTCF, ZTCFQ, DELTA, DELTAQ, config)
 % CALCULATE_TOTAL_WORK_POWER - Calculate total work and power at each joint
 %
-% OPTIMIZED VERSION with dt precomputation
-%
 % Inputs:
 %   BASE, BASEQ - Base data tables
 %   ZTCF, ZTCFQ - ZTCF data tables
@@ -20,13 +18,8 @@ function [BASE, BASEQ, ZTCF, ZTCFQ, DELTA, DELTAQ] = calculate_total_work_power(
 %   - Total Power = Angular Power + Linear Power (for each joint)
 %   - Fractional contributions (ZTCF/BASE, DELTA/BASE)
 %
-% OPTIMIZATION NOTES:
-%   - Precompute dt = diff(Time) once per table
-%   - Reuse dt for all derivative calculations
-%
 % Author: Optimized Golf Swing Analysis System
 % Date: 2025
-% Optimization Level: MAXIMUM
 
     if config.verbose
         fprintf('🔬 Calculating total work and power...\n');
@@ -59,18 +52,6 @@ end
 
 function table_out = add_total_work_power(table_in)
     % Add total work and power columns to a single table
-    %
-    % OPTIMIZATION: Precompute dt once, reuse for all derivatives
-
-    %% ========================================================================
-    %  OPTIMIZATION: PRECOMPUTE TIME DIFFERENCES
-    %  Original: Calling diff(table_in.Time) for each variable
-    %  Optimized: Compute once, reuse for all derivatives
-    %  Speedup: Minor but cleaner code, reduces function calls
-    %% ========================================================================
-
-    % Precompute time differences for derivative calculations
-    dt = diff(table_in.Time);
 
     % Joint names
     joints = {'LS', 'RS', 'LE', 'RE', 'LW', 'RW'};
@@ -104,14 +85,12 @@ function table_out = add_total_work_power(table_in)
             table_in.(total_work_var) = table_in.(angular_work_var) + table_in.(linear_work_var);
 
             % Calculate angular power (derivative of angular work)
-            % OPTIMIZED: Use precomputed dt instead of calling diff(Time)
             angular_power_var = sprintf('%sAngularPower', joint);
-            table_in.(angular_power_var) = [0; diff(table_in.(angular_work_var)) ./ dt];
+            table_in.(angular_power_var) = [0; diff(table_in.(angular_work_var)) ./ diff(table_in.Time)];
 
             % Calculate linear power (derivative of linear work)
-            % OPTIMIZED: Use precomputed dt instead of calling diff(Time)
             linear_power_var = sprintf('%sLinearPower', joint);
-            table_in.(linear_power_var) = [0; diff(table_in.(linear_work_var)) ./ dt];
+            table_in.(linear_power_var) = [0; diff(table_in.(linear_work_var)) ./ diff(table_in.Time)];
 
             % Calculate total power
             total_power_var = sprintf('%sTotalPower', joint);
