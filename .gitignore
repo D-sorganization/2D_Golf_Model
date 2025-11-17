@@ -34,9 +34,7 @@ logs/
 *.log
 
 # Binary models/data via LFS
-*.slx
 *.mdl
-*.mat
 *.h5
 *.zip
 
