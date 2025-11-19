@@ -78,6 +78,7 @@ jobs:
         elif [ -d python/tests ]; then
           cd python
           pytest tests/ --cov=. --cov-report=xml --cov-report=term-missing
+          cd ..
         elif [ -d tests ]; then
           pytest tests/ --cov=. --cov-report=xml --cov-report=term-missing
         else
@@ -87,7 +88,7 @@ jobs:
     - name: Upload coverage to Codecov
       uses: codecov/codecov-action@v3
       with:
-        file: ./coverage.xml
+        files: python/coverage.xml,./coverage.xml
         flags: unittests
         name: codecov-umbrella
         fail_ci_if_error: false
