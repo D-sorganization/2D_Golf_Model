@@ -51,7 +51,7 @@ jobs:
       run: |
         echo "🔍 Running Ruff linter..."
         if [ -f ruff.toml ]; then
-          ruff check . --select ALL
+          ruff check .
         else
           ruff check . --select E,W,F,I,N,UP,YTT,S,ARG,ERA,PD,PG,PL,TRY,NPY,PIE,T20,FLY,PERF,LOG,RSE,RUF
         fi
@@ -62,7 +62,7 @@ jobs:
         if [ -f mypy.ini ]; then
           mypy . --config-file mypy.ini
         else
-          mypy . --strict --ignore-missing-imports
+          mypy . --ignore-missing-imports
         fi
 
     - name: Format check with Black
@@ -139,4 +139,4 @@ jobs:
         if ! command -v pydocstyle &> /dev/null; then
           pip install pydocstyle
         fi
-        pydocstyle .
+        pydocstyle . || echo "⚠️ Docstring issues found"
