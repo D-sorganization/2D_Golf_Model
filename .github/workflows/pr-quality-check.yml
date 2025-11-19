@@ -11,7 +11,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        python-version: [3.9, 3.10, 3.11]
+        python-version: ["3.9", "3.10", "3.11"]
 
     steps:
     - uses: actions/checkout@v4
@@ -19,12 +19,12 @@ jobs:
         fetch-depth: 0  # Full history for better analysis
 
     - name: Set up Python ${{ matrix.python-version }}
-      uses: actions/setup-python@v4
+      uses: actions/setup-python@v5
       with:
         python-version: ${{ matrix.python-version }}
 
     - name: Cache pip dependencies
-      uses: actions/cache@v3
+      uses: actions/cache@v4
       with:
         path: ~/.cache/pip
         key: ${{ runner.os }}-pip-${{ matrix.python-version }}-${{ hashFiles('**/requirements.txt', '**/pyproject.toml') }}
@@ -75,8 +75,13 @@ jobs:
         echo "🧪 Running tests..."
         if [ -f pytest.ini ]; then
           pytest --cov=. --cov-report=xml --cov-report=term-missing
+        elif [ -d python/tests ]; then
+          cd python
+          pytest tests/ --cov=. --cov-report=xml --cov-report=term-missing
+        elif [ -d tests ]; then
+          pytest tests/ --cov=. --cov-report=xml --cov-report=term-missing
         else
-          pytest --cov=. --cov-report=xml --cov-report=term-missing tests/
+          echo "⚠️ No tests directory found, skipping tests"
         fi
 
     - name: Upload coverage to Codecov
@@ -91,6 +96,11 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.11'
 
     - name: Run Bandit security check
       run: |
@@ -108,6 +118,11 @@ jobs:
     steps:
     - uses: actions/checkout@v4
 
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.11'
+
     - name: Check documentation links
       run: |
         echo "📚 Checking documentation..."
@@ -120,7 +135,7 @@ jobs:
     - name: Check for docstrings
       run: |
         echo "📝 Checking for docstrings..."
-        if command -v pydocstyle &> /dev/null; then
+        if ! command -v pydocstyle &> /dev/null; then
           pip install pydocstyle
-          pydocstyle . || echo "⚠️ Docstring issues found"
         fi
+        pydocstyle . || echo "⚠️ Docstring issues found"
