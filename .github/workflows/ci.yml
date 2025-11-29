@@ -5,6 +5,10 @@ on:
   push:
     branches: [ main ]
 
+# Minimal permissions for security
+permissions:
+  contents: read
+
 jobs:
   lint-and-test:
     runs-on: ubuntu-latest
@@ -141,6 +145,89 @@ jobs:
             fi
           done
 
+      - name: MATLAB Quality Checks (bash-based, no license needed)
+        run: |
+          echo "🔍 Running MATLAB quality checks (bash-based)..."
+          
+          # Check for magic numbers in MATLAB files
+          echo ""
+          echo "1️⃣ Checking for magic numbers in MATLAB files..."
+          # Use -r flag with xargs to handle empty results
+          if find matlab matlab_optimized -name "*.m" -type f 2>/dev/null | grep -v "Archive\|Backup\|test" | xargs -r grep -H '[^0-9a-zA-Z_]3\.14[0-9]*\|9\.8[0-9]*\|6\.67[0-9]*\|2\.71[0-9]*' 2>/dev/null; then
+            echo "⚠️ WARNING: Possible magic numbers found in MATLAB files"
+            echo "Use named constants: 3.14→pi, 9.8→g (with source), 2.71→exp(1)"
+          else
+            echo "✅ No magic numbers found in MATLAB files"
+          fi
+          
+          # Check for approximations in MATLAB files
+          echo ""
+          echo "2️⃣ Checking for approximations in MATLAB files..."
+          if find matlab matlab_optimized -name "*.m" -type f 2>/dev/null | grep -v "Archive\|Backup" | xargs -r grep -Hi "approximately\|approx[^a-z]\|roughly\|~[0-9]" 2>/dev/null; then
+            echo "❌ ERROR: Approximations found in MATLAB files - use exact values"
+            exit 1
+          else
+            echo "✅ No approximations found in MATLAB files"
+          fi
+          
+          # Check for random number generation without seeds
+          echo ""
+          echo "3️⃣ Checking for unseeded randomness in MATLAB files..."
+          UNSEEDED_COUNT=0
+          if [ -d matlab ] || [ -d matlab_optimized ]; then
+            for file in $(find matlab matlab_optimized -name "*.m" -type f 2>/dev/null | grep -v "Archive\|Backup"); do
+              if grep -qE '\brand\(|\brandn\(|\brandi\(' "$file" 2>/dev/null; then
+                if ! grep -qE '\brng\(' "$file" 2>/dev/null; then
+                  echo "⚠️ Warning: $file uses randomness without rng seed"
+                  UNSEEDED_COUNT=$((UNSEEDED_COUNT + 1))
+                fi
+              fi
+            done
+          fi
+          
+          if [ $UNSEEDED_COUNT -eq 0 ]; then
+            echo "✅ All MATLAB files with randomness have seeds"
+          else
+            echo "⚠️ Found $UNSEEDED_COUNT MATLAB files with unseeded randomness"
+          fi
+          
+          # Count MATLAB files and tests
+          echo ""
+          echo "4️⃣ MATLAB file statistics..."
+          MATLAB_COUNT=0
+          OPTIMIZED_COUNT=0
+          TEST_COUNT=0
+          
+          if [ -d matlab ]; then
+            MATLAB_COUNT=$(find matlab -name "*.m" -type f 2>/dev/null | wc -l)
+          fi
+          if [ -d matlab_optimized ]; then
+            OPTIMIZED_COUNT=$(find matlab_optimized -name "*.m" -type f 2>/dev/null | wc -l)
+          fi
+          if [ -d matlab/tests ]; then
+            TEST_COUNT=$(find matlab/tests -name "*.m" -type f 2>/dev/null | wc -l)
+          fi
+          
+          echo "📊 Found $MATLAB_COUNT MATLAB files in matlab/"
+          echo "📊 Found $OPTIMIZED_COUNT MATLAB files in matlab_optimized/"
+          echo "📊 Found $TEST_COUNT test files in matlab/tests/"
+          
+          if [ $TEST_COUNT -eq 0 ]; then
+            echo "⚠️ WARNING: No MATLAB test files found - add tests!"
+          else
+            echo "✅ MATLAB test files exist"
+          fi
+          
+          # Verify run_matlab_quality_checks.m exists
+          echo ""
+          echo "5️⃣ Checking for MATLAB quality check script..."
+          if [ -f "run_matlab_quality_checks.m" ]; then
+            echo "✅ run_matlab_quality_checks.m found"
+            echo "   Run 'matlab -batch run_matlab_quality_checks' locally for full checks"
+          else
+            echo "⚠️ run_matlab_quality_checks.m not found"
+          fi
+
       - name: Summary
         if: always()
         run: |
@@ -155,30 +242,81 @@ jobs:
           echo "| Pre-commit | ✅ |" >> $GITHUB_STEP_SUMMARY
           echo "| Type Checking | ✅ |" >> $GITHUB_STEP_SUMMARY
           echo "| Tests + Coverage | ✅ |" >> $GITHUB_STEP_SUMMARY
+          echo "| MATLAB Checks | ✅ |" >> $GITHUB_STEP_SUMMARY
 
   matlab-analysis:
+    name: MATLAB Analysis (requires MATLAB license)
     runs-on: ubuntu-latest
-    if: false  # Enable when MATLAB runner available
+    # Enable when MATLAB runner available
+    # Set to 'true' when MATLAB license is configured
+    if: false
+    
     steps:
-      - uses: actions/checkout@v4
-      - uses: matlab-actions/setup-matlab@v2
-      - uses: matlab-actions/run-command@v2
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      
+      - name: Set up MATLAB
+        uses: matlab-actions/setup-matlab@v2
+        with:
+          release: R2023b
+          products: MATLAB Simulink  # Add required toolboxes
+      
+      - name: Run MATLAB quality checks
+        uses: matlab-actions/run-command@v2
         with:
           command: |
-            % Add paths
+            % Run comprehensive quality checks
+            fprintf('🔍 Running MATLAB Quality Checks...\n\n');
+            
+            % Add all paths
             addpath(genpath('matlab'));
-
-            % Check for magic numbers in MATLAB
-            mFiles = dir('**/*.m');
-            for i = 1:length(mFiles)
-                content = fileread(fullfile(mFiles(i).folder, mFiles(i).name));
-                if contains(content, {'3.14', '9.8', '6.67'})
-                    warning('Possible magic number in %s', mFiles(i).name);
+            if exist('matlab_optimized', 'dir')
+                addpath(genpath('matlab_optimized'));
+            end
+            
+            % Run the quality check script
+            if exist('run_matlab_quality_checks.m', 'file')
+                run_matlab_quality_checks();
+            else
+                warning('run_matlab_quality_checks.m not found, running basic checks');
+                
+                % Basic magic number check
+                mFiles = [dir('matlab/**/*.m'); dir('matlab_optimized/**/*.m')];
+                for i = 1:length(mFiles)
+                    filePath = fullfile(mFiles(i).folder, mFiles(i).name);
+                    if contains(filePath, 'Archive') || contains(filePath, 'Backup')
+                        continue;
+                    end
+                    content = fileread(filePath);
+                    if contains(content, {'3.14', '9.8', '6.67'})
+                        warning('Possible magic number in %s', filePath);
+                    end
                 end
             end
-
-            % Run tests
-            if exist('matlab/tests', 'dir')
-                results = runtests('matlab/tests');
-                assertSuccess(results);
-            end
+            
+            fprintf('\n✅ MATLAB quality checks completed\n');
+      
+      - name: Run MATLAB unit tests
+        uses: matlab-actions/run-tests@v2
+        with:
+          source-folder: matlab
+          test-results-junit: test-results/matlab-results.xml
+          code-coverage-cobertura: code-coverage/matlab-coverage.xml
+      
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: matlab-test-results
+          path: test-results/
+          if-no-files-found: ignore
+      
+      - name: Upload coverage
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: matlab-coverage
+          path: code-coverage/
+          if-no-files-found: ignore
