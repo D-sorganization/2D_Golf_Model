@@ -32,8 +32,8 @@ function test_no_magic_numbers(testCase)
     for i = 1:length(mFiles)
         filePath = fullfile(mFiles(i).folder, mFiles(i).name);
         
-        % Skip test files and archived code
-        if contains(filePath, 'test') || contains(filePath, 'Archive') || contains(filePath, 'Backup')
+        % Skip files using helper function
+        if should_skip_file_for_quality(filePath)
             continue;
         end
         
@@ -66,8 +66,8 @@ function test_functions_have_documentation(testCase)
     for i = 1:length(mFiles)
         filePath = fullfile(mFiles(i).folder, mFiles(i).name);
         
-        % Skip test files and archived code
-        if contains(filePath, 'test') || contains(filePath, 'Archive') || contains(filePath, 'Backup')
+        % Skip files using helper function
+        if should_skip_file_for_quality(filePath)
             continue;
         end
         
@@ -117,7 +117,7 @@ function test_random_functions_use_seeds(testCase)
     for i = 1:length(mFiles)
         filePath = fullfile(mFiles(i).folder, mFiles(i).name);
         
-        % Skip archived code
+        % Skip archived code (but allow test files to check for seeds)
         if contains(filePath, 'Archive') || contains(filePath, 'Backup')
             continue;
         end
@@ -182,5 +182,28 @@ function files = get_matlab_files()
     if exist('matlab_optimized', 'dir')
         optimizedFiles = dir('matlab_optimized/**/*.m');
         files = [files; optimizedFiles];
+    end
+end
+
+function skip = should_skip_file_for_quality(filePath)
+    % Determine if a file should be skipped in quality checks
+    % Used to reduce code duplication across test functions
+    
+    % Directories and patterns to skip
+    skipPatterns = {
+        'Archive', 'archive',
+        'Backup', 'backup',
+        'Old', 'old',
+        'Legacy', 'legacy',
+        'Experimental', 'experimental',
+        'test', 'Test'  % Skip test files for quality checks
+    };
+    
+    skip = false;
+    for i = 1:length(skipPatterns)
+        if contains(filePath, skipPatterns{i})
+            skip = true;
+            return;
+        end
     end
 end

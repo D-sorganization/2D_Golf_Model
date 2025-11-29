@@ -10,6 +10,9 @@ function run_matlab_quality_checks()
 % Usage:
 %   run_matlab_quality_checks()
 %
+% Requirements:
+%   MATLAB R2016b or later (for recursive dir pattern)
+%
 % The function will display results for each check and report any issues found.
 %
 % See also: checkcode, runtests
@@ -62,8 +65,9 @@ function ok = check_magic_numbers()
     fprintf('1️⃣  Checking for magic numbers...\n\n');
     
     % Common magic numbers to avoid (with suggested alternatives)
+    % Use more precise patterns to avoid false positives
     magicNumbers = struct(...
-        'pattern', {'3.14', '9.8', '6.67', '2.71'}, ...
+        'pattern', {'\<3\.14[0-9]*\>', '\<9\.8[0-9]*\>', '\<6\.67[0-9]*\>', '\<2\.71[0-9]*\>'}, ...
         'suggestion', {'pi (built-in)', 'g with source', 'G with source', 'exp(1)'} ...
     );
     
@@ -83,8 +87,9 @@ function ok = check_magic_numbers()
         content = fileread(filePath);
         
         for j = 1:length(magicNumbers)
-            if contains(content, magicNumbers(j).pattern)
-                fprintf('   ⚠️  Found %s in %s\n', magicNumbers(j).pattern, filePath);
+            % Use regexp for more precise pattern matching
+            if ~isempty(regexp(content, magicNumbers(j).pattern, 'once'))
+                fprintf('   ⚠️  Found magic number matching %s in %s\n', magicNumbers(j).pattern, filePath);
                 fprintf('       → Suggestion: Use %s\n', magicNumbers(j).suggestion);
                 found = true;
             end
@@ -169,9 +174,11 @@ function ok = check_reproducibility()
         fileCount = fileCount + 1;
         content = fileread(filePath);
         
-        % Check for random functions without rng
-        hasRandom = contains(content, 'rand(') || contains(content, 'randn(') || contains(content, 'randi(');
-        hasRng = contains(content, 'rng(');
+        % Check for random functions without rng (use word boundaries for accuracy)
+        hasRandom = ~isempty(regexp(content, '\<rand\(', 'once')) || ...
+                    ~isempty(regexp(content, '\<randn\(', 'once')) || ...
+                    ~isempty(regexp(content, '\<randi\(', 'once'));
+        hasRng = ~isempty(regexp(content, '\<rng\(', 'once'));
         
         if hasRandom && ~hasRng
             % Extract filename for cleaner display
@@ -216,8 +223,17 @@ function ok = check_documentation()
         content = fileread(filePath);
         lines = strsplit(content, '\n');
         
-        % Check if it's a function file
-        if isempty(lines) || ~startsWith(strtrim(lines{1}), 'function')
+        % Check if it's a function file (look in first 10 lines for function keyword)
+        isFunction = false;
+        for lineIdx = 1:min(10, length(lines))
+            line = strtrim(lines{lineIdx});
+            if startsWith(line, 'function') && ~startsWith(line, '%')
+                isFunction = true;
+                break;
+            end
+        end
+        
+        if ~isFunction
             continue;
         end
         

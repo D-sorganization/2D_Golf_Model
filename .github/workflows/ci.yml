@@ -148,7 +148,8 @@ jobs:
           # Check for magic numbers in MATLAB files
           echo ""
           echo "1️⃣ Checking for magic numbers in MATLAB files..."
-          if find matlab matlab_optimized -name "*.m" -type f 2>/dev/null | xargs grep -H '[^0-9a-zA-Z_]3\.14[0-9]*\|9\.8[0-9]*\|6\.67[0-9]*\|2\.71[0-9]*' 2>/dev/null | grep -v "Archive\|Backup\|test"; then
+          # Use -r flag with xargs to handle empty results
+          if find matlab matlab_optimized -name "*.m" -type f 2>/dev/null | grep -v "Archive\|Backup\|test" | xargs -r grep -H '[^0-9a-zA-Z_]3\.14[0-9]*\|9\.8[0-9]*\|6\.67[0-9]*\|2\.71[0-9]*' 2>/dev/null; then
             echo "⚠️ WARNING: Possible magic numbers found in MATLAB files"
             echo "Use named constants: 3.14→pi, 9.8→g (with source), 2.71→exp(1)"
           else
@@ -158,7 +159,7 @@ jobs:
           # Check for approximations in MATLAB files
           echo ""
           echo "2️⃣ Checking for approximations in MATLAB files..."
-          if find matlab matlab_optimized -name "*.m" -type f 2>/dev/null | xargs grep -Hi "approximately\|approx[^a-z]\|roughly\|~[0-9]" 2>/dev/null | grep -v "Archive\|Backup"; then
+          if find matlab matlab_optimized -name "*.m" -type f 2>/dev/null | grep -v "Archive\|Backup" | xargs -r grep -Hi "approximately\|approx[^a-z]\|roughly\|~[0-9]" 2>/dev/null; then
             echo "❌ ERROR: Approximations found in MATLAB files - use exact values"
             exit 1
           else
@@ -169,14 +170,16 @@ jobs:
           echo ""
           echo "3️⃣ Checking for unseeded randomness in MATLAB files..."
           UNSEEDED_COUNT=0
-          for file in $(find matlab matlab_optimized -name "*.m" -type f 2>/dev/null | grep -v "Archive\|Backup"); do
-            if grep -q "rand\|randn\|randi" "$file" 2>/dev/null; then
-              if ! grep -q "rng(" "$file" 2>/dev/null; then
-                echo "⚠️ Warning: $file uses randomness without rng seed"
-                UNSEEDED_COUNT=$((UNSEEDED_COUNT + 1))
+          if [ -d matlab ] || [ -d matlab_optimized ]; then
+            for file in $(find matlab matlab_optimized -name "*.m" -type f 2>/dev/null | grep -v "Archive\|Backup"); do
+              if grep -qE '\brand\(|\brandn\(|\brandi\(' "$file" 2>/dev/null; then
+                if ! grep -qE '\brng\(' "$file" 2>/dev/null; then
+                  echo "⚠️ Warning: $file uses randomness without rng seed"
+                  UNSEEDED_COUNT=$((UNSEEDED_COUNT + 1))
+                fi
               fi
-            fi
-          done
+            done
+          fi
           
           if [ $UNSEEDED_COUNT -eq 0 ]; then
             echo "✅ All MATLAB files with randomness have seeds"
@@ -187,9 +190,19 @@ jobs:
           # Count MATLAB files and tests
           echo ""
           echo "4️⃣ MATLAB file statistics..."
-          MATLAB_COUNT=$(find matlab -name "*.m" -type f 2>/dev/null | wc -l)
-          OPTIMIZED_COUNT=$(find matlab_optimized -name "*.m" -type f 2>/dev/null | wc -l)
-          TEST_COUNT=$(find matlab/tests -name "*.m" -type f 2>/dev/null | wc -l)
+          MATLAB_COUNT=0
+          OPTIMIZED_COUNT=0
+          TEST_COUNT=0
+          
+          if [ -d matlab ]; then
+            MATLAB_COUNT=$(find matlab -name "*.m" -type f 2>/dev/null | wc -l)
+          fi
+          if [ -d matlab_optimized ]; then
+            OPTIMIZED_COUNT=$(find matlab_optimized -name "*.m" -type f 2>/dev/null | wc -l)
+          fi
+          if [ -d matlab/tests ]; then
+            TEST_COUNT=$(find matlab/tests -name "*.m" -type f 2>/dev/null | wc -l)
+          fi
           
           echo "📊 Found $MATLAB_COUNT MATLAB files in matlab/"
           echo "📊 Found $OPTIMIZED_COUNT MATLAB files in matlab_optimized/"
