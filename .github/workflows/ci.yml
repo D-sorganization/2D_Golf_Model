@@ -5,6 +5,10 @@ on:
   push:
     branches: [ main ]
 
+# Minimal permissions for security
+permissions:
+  contents: read
+
 jobs:
   lint-and-test:
     runs-on: ubuntu-latest
