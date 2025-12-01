@@ -14,3 +14,4 @@ These files are archived for historical reference. For current documentation, se
 - `README.md` in the repository root
 - `docs/` folder for active guides
 - `matlab_optimized/docs/` for optimized system documentation
+
