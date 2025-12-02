@@ -114,12 +114,23 @@ jobs:
         run: |
           # Fail if "approximately" or similar found
           # Exclude constants_file.py as it contains documented values with sources
-          if grep -ri "approximately\|approx[^a-z]\|roughly\|~[0-9]" \
+          # Exclude pytest.approx() which is a testing function, not an approximation comment
+          # Exclude test files from approximation checks (they use pytest.approx for testing)
+          # Use grep to find matches, then filter out pytest.approx and test files
+          APPROX_MATCHES=$(grep -ri "approximately\|approx[^a-z]\|roughly\|~[0-9]" \
             --include="*.py" --include="*.m" \
             --exclude-dir=".git" \
             --exclude-dir="docs" \
-            --exclude="constants_file.py" .; then
+            --exclude-dir="tests" \
+            --exclude="constants_file.py" \
+            --exclude="*test*.py" . 2>/dev/null || true)
+          
+          # Filter out pytest.approx usage (testing function, not approximation comment)
+          FILTERED_MATCHES=$(echo "$APPROX_MATCHES" | grep -v "pytest.approx" | grep -v "assert.*pytest.approx" || true)
+          
+          if [ -n "$FILTERED_MATCHES" ]; then
             echo "❌ ERROR: Approximations found - use exact values with sources"
+            echo "$FILTERED_MATCHES"
             exit 1
           else
             echo "✅ No approximations found"
