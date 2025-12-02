@@ -335,7 +335,8 @@ class MATLABQualityChecker:
                         if line_check and not line_check.startswith("%"):
                             # Check if 'arguments' is at start of line (MATLAB keyword requirement)
                             # Line is already stripped, so re.match anchors to start automatically
-                            # Word boundary ensures it's not part of a larger word (e.g., data.arguments)
+                            # Word boundary ensures it's not part of a larger word
+                            # (e.g., data.arguments)
                             if re.match(r"arguments\b", line_check):
                                 has_arguments = True
                             break
