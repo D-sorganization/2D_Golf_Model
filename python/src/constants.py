@@ -67,4 +67,3 @@ CONVERGENCE_TOLERANCE: float = 1e-6  # [dimensionless] Default convergence toler
 
 # Reproducibility
 DEFAULT_RANDOM_SEED: int = 42  # [dimensionless] Answer to everything
-

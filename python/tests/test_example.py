@@ -108,4 +108,3 @@ def test_sanity() -> None:
     assert 2 + 2 == 4
     assert constants.PI > 3.0
     assert constants.E > 2.0
-
