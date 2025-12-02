@@ -333,11 +333,10 @@ class MATLABQualityChecker:
                             continue
                         # Break on non-empty, non-comment code lines (arguments must be immediate)
                         if line_check and not line_check.startswith("%"):
-                            # Use re.match with ^ to ensure 'arguments' is at start of line
-                            # (MATLAB keyword requirement; line is already stripped)
-                            # This prevents false positives from field names like
-                            # data.arguments or function calls
-                            if re.match(r"^arguments\b", line_check):
+                            # Check if 'arguments' is at start of line (MATLAB keyword requirement)
+                            # Line is already stripped, so re.match anchors to start automatically
+                            # Word boundary ensures it's not part of a larger word (e.g., data.arguments)
+                            if re.match(r"arguments\b", line_check):
                                 has_arguments = True
                             break
 
@@ -409,6 +408,9 @@ class MATLABQualityChecker:
                 # false positives from common patterns.
                 magic_number_pattern = r"(?<![.\w])(?:\d+\.\d+|\d+)(?![.\w])"
                 magic_numbers = re.findall(magic_number_pattern, line_stripped)
+                # Deduplicate to avoid reporting the same number twice when it appears
+                # in both code and comment on the same line (e.g., x = 42; % answer is 42)
+                magic_numbers = list(dict.fromkeys(magic_numbers))
 
                 for num in magic_numbers:
                     # Check if it's a known constant
