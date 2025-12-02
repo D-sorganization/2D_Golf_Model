@@ -152,7 +152,9 @@ jobs:
           else
             pytest tests/ --cov=. --cov-report=xml --cov-report=term-missing
           fi
+          EXIT_CODE=$?
           cd ..
+          exit $EXIT_CODE
         elif [ -d tests ]; then
           pytest tests/ --cov="$COV_TARGET" --cov-report=xml --cov-report=term-missing
         else
