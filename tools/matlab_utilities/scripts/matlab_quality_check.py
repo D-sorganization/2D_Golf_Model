@@ -20,6 +20,7 @@ import subprocess
 import sys
 from datetime import UTC, datetime
 from pathlib import Path
+from typing import ClassVar  # noqa: ICN003
 
 # Constants
 # 300 seconds (5 minutes) - allows time for large codebases
@@ -38,7 +39,7 @@ class MATLABQualityChecker:
     """Comprehensive MATLAB code quality checker."""
 
     # Class constants for magic number checking
-    ACCEPTABLE_NUMBERS: "ClassVar[set[str]]" = {
+    ACCEPTABLE_NUMBERS: ClassVar[set[str]] = {
         "0",
         "0.0",
         "1",
@@ -64,7 +65,7 @@ class MATLABQualityChecker:
         "0.0001",  # Common tolerances
     }
 
-    KNOWN_CONSTANTS: "ClassVar[dict[str, str]]" = {
+    KNOWN_CONSTANTS: ClassVar[dict[str, str]] = {
         "3.14159": "pi constant [dimensionless] - mathematical constant",
         "3.1416": "pi constant [dimensionless] - mathematical constant",
         "3.14": "pi constant [dimensionless] - mathematical constant",
