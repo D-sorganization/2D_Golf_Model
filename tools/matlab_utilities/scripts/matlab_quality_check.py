@@ -102,7 +102,7 @@ class MATLABQualityChecker:
         Returns:
             True if MATLAB files are found, False otherwise
         """
-        m_files = []
+        m_files: list[Path] = []
         if self.matlab_dir.exists():
             m_files.extend(self.matlab_dir.rglob("*.m"))
         if self.matlab_optimized_dir.exists():
