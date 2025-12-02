@@ -184,7 +184,7 @@ classdef GolfSwingVisualizer < handle
             obj.Config.CheckboxMapping = struct('Force_BASE', 1, 'Force_ZTCF', 2, 'Force_DELTA', 3, 'Torque_BASE', 4, 'Torque_ZTCF', 5, 'Torque_DELTA', 6, 'Shaft_Club', 7, 'Face_Normal', 8, 'Left_Forearm', 9, 'Left_Upper_Arm', 10, 'Left_Shoulder_Neck', 11, 'Right_Forearm', 12, 'Right_Upper_Arm', 13, 'Right_Shoulder_Neck', 14);
 
             % --- Playback, Scaling, Zoom, Recording Config ---
-            obj.Config.Playback.TimerPeriod = 0.033; % Approx 30 fps base speed
+            obj.Config.Playback.TimerPeriod = 0.033; % 30 fps base speed (1/30 s)
             obj.Config.Playback.MinSpeed = 0.1; obj.Config.Playback.MaxSpeed = 3.0; obj.Config.Playback.DefaultSpeed = 1.0;
             obj.Config.Scaling.MinVectorScale = 0.1; obj.Config.Scaling.MaxVectorScale = 9.0; obj.Config.Scaling.DefaultVectorScale = 1.0;
             obj.Config.Zoom.MinFactor = 0.1; obj.Config.Zoom.MaxFactor = 5.0; obj.Config.Zoom.DefaultFactor = 1.0;
