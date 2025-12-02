@@ -190,16 +190,23 @@ jobs:
 
           if [ -f pytest.ini ]; then
             pytest --cov="$COV_TARGET" --cov-report=xml --cov-report=term-missing
+            EXIT_CODE=$?
+            exit $EXIT_CODE
           elif [ -d python/tests ]; then
             cd python
             if [ -d src ]; then
               pytest tests/ --cov=src --cov-report=xml --cov-report=term-missing
+              EXIT_CODE=$?
             else
               pytest tests/ --cov=. --cov-report=xml --cov-report=term-missing
+              EXIT_CODE=$?
             fi
             cd ..
+            exit $EXIT_CODE
           elif [ -d tests ]; then
             pytest tests/ --cov="$COV_TARGET" --cov-report=xml --cov-report=term-missing
+            EXIT_CODE=$?
+            exit $EXIT_CODE
           else
             echo "⚠️ No tests directory found, skipping tests"
           fi

@@ -22,7 +22,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 # Constants
-MATLAB_SCRIPT_TIMEOUT_SECONDS: int = 300  # 5 minutes - allows time for large codebases
+MATLAB_SCRIPT_TIMEOUT_SECONDS: int = 300  # 300 seconds (5 minutes) - allows time for large codebases
 MIN_DOCSTRING_LENGTH: int = 3  # Minimum length for a valid docstring comment
 
 # Set up logging
@@ -36,6 +36,46 @@ logger = logging.getLogger(__name__)
 class MATLABQualityChecker:
     """Comprehensive MATLAB code quality checker."""
 
+    # Class constants for magic number checking
+    ACCEPTABLE_NUMBERS: set[str] = {
+        "0",
+        "0.0",
+        "1",
+        "1.0",
+        "2",
+        "2.0",
+        "3",
+        "3.0",
+        "4",
+        "4.0",
+        "5",
+        "5.0",
+        "10",
+        "10.0",
+        "100",
+        "100.0",
+        "1000",
+        "1000.0",
+        "0.5",
+        "0.1",
+        "0.01",
+        "0.001",
+        "0.0001",  # Common tolerances
+    }
+
+    KNOWN_CONSTANTS: dict[str, str] = {
+        "3.14159": "pi constant [dimensionless] - mathematical constant",
+        "3.1416": "pi constant [dimensionless] - mathematical constant",
+        "3.14": "pi constant [dimensionless] - mathematical constant",
+        "1.5708": "pi/2 constant [dimensionless] - mathematical constant",
+        "1.57": "pi/2 constant [dimensionless] - mathematical constant",
+        "0.7854": "pi/4 constant [dimensionless] - mathematical constant",
+        "0.785": "pi/4 constant [dimensionless] - mathematical constant",
+        "9.81": "gravitational acceleration [m/s²] - approximate standard gravity",
+        "9.8": "gravitational acceleration [m/s²] - approximate standard gravity",
+        "9.807": "gravitational acceleration [m/s²] - approximate standard gravity",
+    }
+
     def __init__(self, project_root: Path) -> None:
         """Initialize the MATLAB quality checker.
 
@@ -44,6 +84,7 @@ class MATLABQualityChecker:
         """
         self.project_root = project_root
         self.matlab_dir = project_root / "matlab"
+        self.matlab_optimized_dir = project_root / "matlab_optimized"
         self.results = {
             "timestamp": datetime.now(UTC).isoformat(),
             "total_files": 0,
@@ -59,14 +100,12 @@ class MATLABQualityChecker:
         Returns:
             True if MATLAB files are found, False otherwise
         """
-        if not self.matlab_dir.exists():
-            logger.info(
-                "MATLAB directory not found: %s (skipping MATLAB checks)",
-                self.matlab_dir,
-            )
-            return False
+        m_files = []
+        if self.matlab_dir.exists():
+            m_files.extend(self.matlab_dir.rglob("*.m"))
+        if self.matlab_optimized_dir.exists():
+            m_files.extend(self.matlab_optimized_dir.rglob("*.m"))
 
-        m_files = list(self.matlab_dir.rglob("*.m"))
         self.results["total_files"] = len(m_files)
 
         if len(m_files) == 0:
@@ -148,6 +187,7 @@ class MATLABQualityChecker:
                             "success": True,
                             "output": result.stdout,
                             "method": "matlab_script",
+                            "passed": True,
                         }
                     logger.warning(
                         "Command failed with return code %d",
@@ -177,11 +217,13 @@ class MATLABQualityChecker:
         issues = []
         total_files = 0
 
-        # Analyze each MATLAB file
-        for m_file in self.matlab_dir.rglob("*.m"):
-            total_files += 1
-            file_issues = self._analyze_matlab_file(m_file)
-            issues.extend(file_issues)
+        # Analyze each MATLAB file in both directories
+        for matlab_path in [self.matlab_dir, self.matlab_optimized_dir]:
+            if matlab_path.exists():
+                for m_file in matlab_path.rglob("*.m"):
+                    total_files += 1
+                    file_issues = self._analyze_matlab_file(m_file)
+                    issues.extend(file_issues)
 
         self.results["total_files"] = total_files
         self.results["issues"] = issues
@@ -250,12 +292,18 @@ class MATLABQualityChecker:
                             nesting_level = 0  # Prevent negative nesting
 
                 # Check for function definition (for docstring and arguments validation)
-                if line_stripped.startswith("function") and not is_comment:
+                # Use word boundary to match MATLAB keyword, not just prefix
+                if re.match(r"\bfunction\b", line_stripped) and not is_comment:
                     # Check if next non-empty line has docstring
+                    # Handle multi-line function definitions with ... continuation
                     has_docstring = False
                     for j in range(i, min(i + 5, len(lines))):
                         next_line = lines[j].strip()
-                        if next_line and not next_line.startswith("%"):
+                        # Skip continuation lines (...)
+                        if next_line == "...":
+                            continue
+                        # Break on non-comment, non-continuation code lines
+                        if next_line and not next_line.startswith("%") and next_line != "...":
                             break
                         if (
                             next_line.startswith("%")
@@ -271,18 +319,24 @@ class MATLABQualityChecker:
 
                     # Check for arguments validation block
                     # Skip comment lines to avoid false positives
+                    # Arguments block must appear immediately after function signature
                     has_arguments = False
                     for j in range(i, min(i + 15, len(lines))):
                         line_check = lines[j].strip()
                         # Skip comment lines
                         if line_check.startswith("%"):
                             continue
-                        # Use re.match to ensure 'arguments' is at start of line
-                        # (MATLAB keyword requirement)
-                        # This prevents false positives from field names like
-                        # data.arguments or function calls
-                        if re.match(r"\barguments\b", line_check):
-                            has_arguments = True
+                        # Skip continuation lines (...)
+                        if line_check == "...":
+                            continue
+                        # Break on non-empty, non-comment code lines (arguments must be immediate)
+                        if line_check and not line_check.startswith("%"):
+                            # Use re.match with ^ to ensure 'arguments' is at start of line
+                            # (MATLAB keyword requirement; line is already stripped)
+                            # This prevents false positives from field names like
+                            # data.arguments or function calls
+                            if re.match(r"^arguments\b", line_check):
+                                has_arguments = True
                             break
 
                     if not has_arguments:
@@ -354,56 +408,14 @@ class MATLABQualityChecker:
                 magic_number_pattern = r"(?<![.\w])(?:\d+\.\d+|\d+)(?![.\w])"
                 magic_numbers = re.findall(magic_number_pattern, line_stripped)
 
-                # Known acceptable values (include integer and float representations)
-                acceptable_numbers = {
-                    "0",
-                    "0.0",
-                    "1",
-                    "1.0",
-                    "2",
-                    "2.0",
-                    "3",
-                    "3.0",
-                    "4",
-                    "4.0",
-                    "5",
-                    "5.0",
-                    "10",
-                    "10.0",
-                    "100",
-                    "100.0",
-                    "1000",
-                    "1000.0",
-                    "0.5",
-                    "0.1",
-                    "0.01",
-                    "0.001",
-                    "0.0001",  # Common tolerances
-                }
-
-                # Known physics constants (should be defined but at least flag with context)
-                # Includes units and sources per coding guidelines
-                known_constants = {
-                    "3.14159": "pi constant [dimensionless] - mathematical constant",
-                    "3.1416": "pi constant [dimensionless] - mathematical constant",
-                    "3.14": "pi constant [dimensionless] - mathematical constant",
-                    "1.5708": "pi/2 constant [dimensionless] - mathematical constant",
-                    "1.57": "pi/2 constant [dimensionless] - mathematical constant",
-                    "0.7854": "pi/4 constant [dimensionless] - mathematical constant",
-                    "0.785": "pi/4 constant [dimensionless] - mathematical constant",
-                    "9.81": "gravitational acceleration [m/s²] - approximate standard gravity",
-                    "9.8": "gravitational acceleration [m/s²] - approximate standard gravity",
-                    "9.807": "gravitational acceleration [m/s²] - approximate standard gravity",
-                }
-
                 for num in magic_numbers:
                     # Check if it's a known constant
-                    if num in known_constants:
+                    if num in self.KNOWN_CONSTANTS:
                         issues.append(
                             f"{file_path.name} (line {i}): Magic number {num} "
-                            f"({known_constants[num]}) - define as named constant",
+                            f"({self.KNOWN_CONSTANTS[num]}) - define as named constant",
                         )
-                    elif num not in acceptable_numbers:
+                    elif num not in self.ACCEPTABLE_NUMBERS:
                         # Check if the number appears before a comment on same line
                         comment_idx = line_original.find("%")
                         num_idx = line_original.find(num)
