@@ -75,9 +75,11 @@ jobs:
     - name: Check for placeholders and magic numbers
       run: |
         echo "🔍 Checking for placeholders and magic numbers..."
-        # ✅ Check both possible script locations
+        # ✅ Check all possible script locations for backward compatibility
         if [ -f scripts/quality-check.py ]; then
           python scripts/quality-check.py
+        elif [ -f scripts/quality_check.py ]; then
+          python scripts/quality_check.py
         elif [ -f quality_check_script.py ]; then
           python quality_check_script.py
         else

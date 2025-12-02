@@ -259,8 +259,10 @@ class MATLABQualityChecker:
                 lines = content.split("\n")
 
             # Track if we're in a function and nesting level
+            # Use separate function nesting to handle classdef files correctly
             in_function = False
             nesting_level = 0
+            function_nesting_level = 0  # Track function nesting separately
 
             # Check for basic quality issues
             for i, line in enumerate(lines, 1):
@@ -274,7 +276,7 @@ class MATLABQualityChecker:
                 # Skip comment-only lines for most checks (but check comments for banned patterns)
                 is_comment = line_stripped.startswith("%")
 
-                # Track function scope by monitoring nesting level
+                # Track function scope by monitoring nesting level and function entry/exit
                 if not is_comment:
                     # Check for keywords that increase nesting
                     # Note: arguments, properties, methods, events also have 'end'
@@ -284,14 +286,26 @@ class MATLABQualityChecker:
                     ):
                         if line_stripped.startswith("function"):
                             in_function = True
+                            function_nesting_level += 1
                         nesting_level += 1
 
                     # Check for 'end' keyword that decreases nesting
                     if re.match(r"\bend\b", line_stripped):
                         nesting_level -= 1
+                        # Track function exit separately from general nesting level
+                        # In classdef files, nesting_level may not reach zero when exiting
+                        # a function, but function_nesting_level tracks function-specific
+                        # nesting
+                        if function_nesting_level > 0:
+                            function_nesting_level -= 1
+                            if function_nesting_level == 0:
+                                in_function = False
+
                         if nesting_level <= 0:
-                            in_function = False
                             nesting_level = 0  # Prevent negative nesting
+                            # Also reset function tracking if we've exited all nesting
+                            in_function = False
+                            function_nesting_level = 0
 
                 # Check for function definition (for docstring and arguments validation)
                 # Use word boundary to match MATLAB keyword, not just prefix
@@ -422,15 +436,26 @@ class MATLABQualityChecker:
                         )
                     elif num not in self.ACCEPTABLE_NUMBERS:
                         # Check if the number appears before a comment on same line
+                        # Use regex with word boundaries to avoid substring matching false positives
+                        # (e.g., "123" matching within "1234")
                         comment_idx = line_original.find("%")
-                        num_idx = line_original.find(num)
-                        if comment_idx == -1 or (
-                            num_idx != -1 and num_idx < comment_idx
-                        ):
-                            issues.append(
-                                f"{file_path.name} (line {i}): Magic number {num} "
-                                "should be defined as constant with units and source",
-                            )
+                        if comment_idx == -1:
+                            # No comment, check if number appears in code portion
+                            num_pattern = re.compile(rf"(?<![.\w]){re.escape(num)}(?![.\w])")
+                            if num_pattern.search(line_stripped):
+                                issues.append(
+                                    f"{file_path.name} (line {i}): Magic number {num} "
+                                    "should be defined as constant with units and source",
+                                )
+                        else:
+                            # Has comment, check if number appears before comment marker
+                            code_portion = line_original[:comment_idx]
+                            num_pattern = re.compile(rf"(?<![.\w]){re.escape(num)}(?![.\w])")
+                            if num_pattern.search(code_portion):
+                                issues.append(
+                                    f"{file_path.name} (line {i}): Magic number {num} "
+                                    "should be defined as constant with units and source",
+                                )
 
                 # Check for clear/clc/close all in functions (bad practice)
                 if in_function:
